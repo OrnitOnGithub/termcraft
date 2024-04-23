@@ -1,18 +1,30 @@
 #![allow(dead_code)] // temporary
 
-use colored::CustomColor;
+
+use colored::*;
 const CAMERA_DISTANCE: f32 = 10.0;
+const SUN_DIRECTION: Vector3 = Vector3{x: 0.0, y: 0.0, z: -1.0};
+
+const PIXEL_CHAR: String = String::from("MM");
 
 const PI: f32 = 3.14159265358979323846264338327950288419716939937510582;
-
 
 #[cfg(test)]
 mod tests {
   use super::*;
 
+    #[test]
+    fn dot_product() {
+      let vec1: Vector3 = Vector3 { x: 0.0, y: 4.0, z: -4.0 };
+      let vec2: Vector3 = Vector3 { x: 4.0, y: -4.0, z: 4.0 };
+      let actual: f32 = vector3_dot(vec1, vec2);
+      let expected: f32 = -32.0;
+      assert_eq!(actual, expected);
+    }
+
     /// Test the distance function
     #[test]
-    fn test_distance() {
+    fn distance() {
       let vec1: Vector3 = Vector3 { x: 0.0, y: 4.0, z: -4.0 };
       let vec2: Vector3 = Vector3 { x: 4.0, y: -4.0, z: 4.0 };
       // should be 12
@@ -23,7 +35,7 @@ mod tests {
 
     /// Test the 2D -> 1D projection function
     #[test]
-    fn test_2d_to_1d_projection() {
+    fn projection_2d_to_1d() {
       // test data
       let camera_position: Vector2 = Vector2 { x: 1.0, y: 1.0 };
       let camera_rot: f32 = 45.0;
@@ -36,7 +48,7 @@ mod tests {
     }
 
     #[test]
-    fn test_vertex_render() {
+    fn vertex_render() {
       // the camera should be pointing directly at the vertex
       let vertex: Vector3 = Vector3 { x: 10.0, y: 10.0, z: 1.0 };
       let camera_position: Vector3 = Vector3 { x: 1.0, y: 1.0, z: 1.0 };
@@ -50,12 +62,25 @@ mod tests {
     }
 }
 
-
 fn main() {
   let mut camera_position: Vector3 = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
   let mut camera_rotation_vertical: f32 = 0.0;
   let mut camera_rotation_horizontal: f32 = 0.0;
 
+}
+
+fn draw_screen(screen: Screen) -> () {
+
+}
+
+fn render_triangle(triangle: Triangle3D, camera_position: Vector3, camera_rotation_vertical: f32, camera_rotation_horizontal: f32) -> Triangle2D {
+  let vertex_a: Vector2 = render_vertex(triangle.a, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+  let vertex_b: Vector2 = render_vertex(triangle.b, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+  let vertex_c: Vector2 = render_vertex(triangle.c, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+
+  let test_colour: CustomColor = triangle.color;
+
+  return Triangle2D { a: vertex_a, b: vertex_b, c: vertex_c, color: test_colour }
 }
 
 /// 3D point -> 2D point (to be put on screen)
@@ -75,16 +100,6 @@ fn render_vertex(vertex: Vector3, camera_position: Vector3, camera_rotation_vert
 
 /// point on 2D plane -> point on 1D axis
 fn project_2d_to_1d(vertex: Vector2, camera_position: Vector2, camera_rotation: f32) -> f32 {
-  // distance between camera and the vertex
-  let camera_vertex_distance: f32 = vector2_distance(camera_position.clone(), vertex.clone());
-  // TODO: calculate relative angly directly using relative position
-  // absolute angle of vertex
-  let vertex_absolute_angle: f32 = f32::atan(vertex.x/vertex.y) * (180.0/PI);
-  // angle of vertex relative to camera angle
-  let vertex_relative_angle: f32 = camera_rotation - vertex_absolute_angle;
-  println!("absolute {:?}", vertex_absolute_angle);
-  println!("relative {:?}", vertex_relative_angle);
-  
   //      this line represents the screen we project on
   //                          |
   //            ----\         |
@@ -97,17 +112,23 @@ fn project_2d_to_1d(vertex: Vector2, camera_position: Vector2, camera_rotation: 
   //                           <---CAMERA_DISTANCE--->
   //            <---------------depth---------------->
 
+  // distance between camera and the vertex
+  let camera_vertex_distance: f32 = vector2_distance(camera_position.clone(), vertex.clone());
+  // TODO: calculate relative angly directly using relative position
+  let camera_vertex_distance_vector: Vector2 = Vector2 { x: vertex.x - camera_position.x, y: vertex.y - camera_position.y };
+  // world angle of vertex relative to camera
+  let vertex_relative_angle: f32 = f32::atan(camera_vertex_distance_vector.x/camera_vertex_distance_vector.y);
+  // relative to camera angle of vertex relative to camera
+  let vertex_camera_angle: f32 = camera_rotation * (PI/180.0) - vertex_relative_angle;
+  
   // find depth
-  let depth: f32 = f32::cos(vertex_relative_angle) * camera_vertex_distance;
+  let depth: f32 = f32::cos(vertex_camera_angle) * camera_vertex_distance;
   // find relative_y
-  let relative_y: f32 = f32::sin(vertex_relative_angle) * camera_vertex_distance;
-
+  let relative_y: f32 = f32::sin(vertex_camera_angle) * camera_vertex_distance;
   // Now we apply Thales' Theorem to find screen_y
   let screen_y: f32 = (CAMERA_DISTANCE * relative_y) / (depth - CAMERA_DISTANCE);
-
   return screen_y;
 }
-
 
 /// Calculate the distance between two 3D points.
 /// 
@@ -134,6 +155,12 @@ fn vector2_distance(vec1: Vector2, vec2: Vector2) -> f32 {
   return distance;
 }
 
+/// Calculate the dot product between two vectors
+fn vector3_dot(vec1: Vector3, vec2: Vector3) -> f32 {
+  let dot_product = vec1.x * vec2.x + vec1.y * vec2.y + vec1.z * vec2.z;
+  return dot_product
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Vector3 {
   x : f32,
@@ -153,6 +180,7 @@ struct Triangle3D {
   b: Vector3,
   c: Vector3,
   normal: Vector3,
+  color: CustomColor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -161,4 +189,31 @@ struct Triangle2D {
   b: Vector2,
   c: Vector2,
   color: CustomColor,
+}
+
+struct Screen {
+  pixels: Vec<Vec<CustomColor>>,
+  size_x: usize,
+  size_y: usize,
+}
+impl Screen {
+  fn init(mut self) {
+    let mut screen: Vec<Vec<CustomColor>> = Vec::new();
+    for _ in 0..self.size_x {
+      let mut x_row: Vec<CustomColor> = Vec::new();
+      for _ in 0..self.size_y {
+        x_row.push(CustomColor{r: 0, g: 0, b: 0});
+      }
+      screen.push(x_row);
+    }
+    self.pixels = screen;
+  }
+  fn draw(&self) {
+    for column in 0..self.size_x {
+      for pixel in 0..self.size_y {
+        let color: CustomColor = self.pixels[column][pixel];
+        print!("{}", PIXEL_CHAR);
+      }
+    }
+  }
 }
