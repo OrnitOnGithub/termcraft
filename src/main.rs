@@ -1,6 +1,7 @@
 #![allow(dead_code)] // temporary
 use colored::*;
-
+extern crate num_traits;
+use num_traits::ToPrimitive;
 // unintuitively, Y is horizontal
 const SCREEN_Y_SIZE: usize = 50;
 // and X is vertical
@@ -79,12 +80,20 @@ mod tests {
       let actual_2: bool = triangle.contains(Vector2 { x: 12.0, y: 12.0 });
       assert_eq!(actual_2, expected_2);
     }
+    #[test]
+    fn indexing() {
+      let position: Vector3 = Vector3 { z: 12.0, x: 12.0, y: 12.0 };
+      let index: usize = vector3_to_linear_index(position);
+      let calculated_position = linear_index_to_vector3(index);
+
+      assert_eq!(position, calculated_position);
+    }
 
 }
 
 fn main() {
   let mut camera_position: Vector3 = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
-  // achtung! CAMERA ROTATION IS IN RADIANS
+  // achtung! CAMERA ROTATION IS IN RADIANS     convert to radians
   let mut camera_rotation_vertical: f32 = 0.0 * (PI/180.0);
   let mut camera_rotation_horizontal: f32 = 0.0 * (PI/180.0);
 
@@ -94,14 +103,14 @@ fn main() {
 
   // initialise the world
   // put the whole world in memory because reading from disk is slow
-  let mut world: Vec<CubeType> = load_world("world.rmc");
+  let mut world_data: Vec<CubeType> = load_world("world.rmc");
 
   // GAME LOOP
   loop {
-    //clearscreen::clear().expect("failed to clear screen");
+    clearscreen::clear().expect("failed to clear screen");
     
     // update main screen
-    main_screen = draw_world();
+    //main_screen = draw_world(world_data.clone());
     // update main screen
 
     // Draw the screen and sleep for a few milliseconds (to let the screen render)
@@ -111,12 +120,72 @@ fn main() {
   }
 }
 
-fn draw_world() -> Screen {
+fn draw_world(world_data: Vec<CubeType>) -> Screen {
 
-  todo!("TODO: draw_world");
+  let triangles_to_draw: Vec<Triangle2D> = Vec::new();
+
+  for (linear_index, cube_type) in world_data.iter().enumerate() {
+    // now we must, for each index:
+    // DONE - if air, ignore
+    // DONE - calculate position from index
+    // DONE - find all cube edge vertices
+    // - construct all 12 triangles into Triangle3Ds and give them preassigned normals
+    //    - when constructing, if (dot product is negative), ignore the fucker
+    // - render whatever remains into list of Triangle2D
+
+    if cube_type.clone() == CubeType::Air {
+      continue; // ignore air blocks
+    }
+    // Let's call our cube ABCDEFGH
+    //    A      B
+    //    +------+.    
+    //    |`. D  | `.  
+    //    |  `+--+---+ C
+    //    |   |  |   | 
+    //    +---+--+.  | 
+    //    H`. |  G `.| 
+    //       `+------+ 
+    //       E       F
+    // Coordinates for reference
+    //        x
+    //        |
+    //    y   |
+    //     `. |
+    //       `+------ z
+    //        E
+
+    // construct all vertices of a cube. fuck arrays ima thug
+    let vertex_e: Vector3 = linear_index_to_vector3(linear_index);
+    let vertex_f: Vector3 = Vector3{ x: vertex_e.x      , y: vertex_e.y      , z: vertex_e.z + 1.0};
+    let vertex_h: Vector3 = Vector3{ x: vertex_e.x      , y: vertex_e.y + 1.0, z: vertex_e.z      };
+    let vertex_g: Vector3 = Vector3{ x: vertex_e.x      , y: vertex_e.y + 1.0, z: vertex_e.z + 1.0};
+    let vertex_d: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.y      , z: vertex_e.z      };
+    let vertex_c: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.y      , z: vertex_e.z + 1.0};
+    let vertex_b: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.y + 1.0, z: vertex_e.z + 1.0};
+    let vertex_a: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.y + 1.0, z: vertex_e.z      };
+
+    
+
+  }
 
   // so the linter shuts up
   return Screen { pixels: Vec::new(), size_x: 0, size_y: 0 };
+}
+
+/// get a set of coordinates with an index
+fn linear_index_to_vector3(linear_index: usize) -> Vector3 {
+  let x = linear_index % 255;
+  let y = (linear_index / 255) % 255;
+  let z = linear_index / (255 * 255);
+  return Vector3 { x: x as f32, y: y as f32, z: z as f32};
+}
+/// get an index from a set of coordinates
+fn vector3_to_linear_index(position: Vector3) -> usize {
+  let x = position.x.to_usize().expect("idc");
+  let y = position.y.to_usize().expect("idc");
+  let z = position.z.to_usize().expect("idc");
+  let linear_index: usize = x + 255 * (y * 255 + z);
+  return linear_index;
 }
 
 fn load_world(path: &str) -> Vec<CubeType> {
@@ -153,7 +222,7 @@ fn render_triangle(triangle: Triangle3D, camera_position: Vector3, camera_rotati
   return Triangle2D { a: vertex_a, b: vertex_b, c: vertex_c, color: test_colour }
 }
 
-/// 3D point -> 2D point (to be put on screen)██
+/// 3D point -> 2D point (to be put on screen)
 fn render_vertex(vertex: Vector3, camera_position: Vector3, camera_rotation_vertical: f32, camera_rotation_horizontal: f32) -> Vector2 {
 
   let position_on_vertical_plane: Vector2 = Vector2   { x: vertex.z, y: vertex.x };
@@ -233,9 +302,9 @@ fn vector3_dot(vec1: Vector3, vec2: Vector3) -> f32 {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Vector3 {
+  z : f32,
   x : f32,
   y : f32,
-  z : f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -246,18 +315,18 @@ struct Vector2 {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Triangle3D {
-  a: Vector3,
-  b: Vector3,
-  c: Vector3,
+  a:      Vector3,
+  b:      Vector3,
+  c:      Vector3,
+  color:  CustomColor,
   normal: Vector3,
-  color: CustomColor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Triangle2D {
-  a: Vector2,
-  b: Vector2,
-  c: Vector2,
+  a:     Vector2,
+  b:     Vector2,
+  c:     Vector2,
   color: CustomColor,
   //parent_cube_idex: usize,
 }
