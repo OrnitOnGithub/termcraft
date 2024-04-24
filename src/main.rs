@@ -12,6 +12,9 @@ const PI: f32 = 3.14159265358979323846264338327950288419716939937510582;
 const CAMERA_DISTANCE: f32 = 10.0;
 const SUN_DIRECTION: Vector3 = Vector3{x: 0.0, y: 0.0, z: -1.0};
 
+const GRASS_COLOR: CustomColor = CustomColor { r: 0, g: 255, b: 0 };
+const STONE_COLOR: CustomColor = CustomColor { r: 128, g: 128, b: 128 };
+const WOOD_COLOR: CustomColor = CustomColor { r: 128, g: 128, b: 0 };
 
 #[cfg(test)]
 mod tests {
@@ -45,7 +48,7 @@ mod tests {
       let camera_rot: f32 = 45.0 * (PI/180.0);
       let vertex: Vector2 = Vector2 { x: 12.0, y: 12.0 };
 
-      let actual: f32 = project_2d_to_1d(vertex, camera_position, camera_rot);
+      let (actual, _ )= project_2d_to_1d(vertex, camera_position, camera_rot);
       let expected: f32 = 0.0; // in theory camera is looking directly at point
 
       assert_eq!(actual, expected);
@@ -59,7 +62,7 @@ mod tests {
       let camera_rotation_horizontal: f32 = 45.0 * (PI/180.0);
       let camera_rotation_vertical: f32 = 0.0 * (PI/180.0);
       // so expected result is (0, 0)
-      let actual: Vector2 = render_vertex(vertex, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+      let (actual, _) = render_vertex(vertex, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
       let expected: Vector2 = Vector2 { x: 0.0, y: 0.0 };
 
       assert_eq!(actual, expected);
@@ -87,6 +90,29 @@ mod tests {
       let calculated_position = linear_index_to_vector3(index);
 
       assert_eq!(position, calculated_position);
+    }
+
+    #[test]
+    fn triangle_depth() {
+      let camera_position: Vector3 = Vector3 { x: 1.0, y: 1.0, z: 1.0 };
+      let camera_rotation_horizontal: f32 = 0.0 * (PI/180.0);
+      let camera_rotation_vertical: f32 = 0.0 * (PI/180.0);
+      let c: Vector3 = Vector3 { x: 0.0, y: 12.0, z: 0.0 };
+      let a: Vector3 = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
+      let b: Vector3 = Vector3 { x: 12.0, y: 0.0, z: 0.0 };
+      let n: Vector3 = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
+      let triangle1: Triangle3D = Triangle3D { a, b, c, color: CustomColor { r: 0, g: 0, b: 0 }, normal: n };
+
+      let a2: Vector3 = Vector3 { x: 10.0, y: 10.0, z: 10.0 };
+      let c2: Vector3 = Vector3 { x: 10.0, y: 12.0, z: 10.0 };
+      let b2: Vector3 = Vector3 { x: 12.0, y: 10.0, z: 10.0 };
+      let n2: Vector3 = Vector3 { x: 10.0, y: 10.0, z: 10.0 };
+      let triangle2: Triangle3D = Triangle3D { a: a2, b: b2, c: c2, color: CustomColor { r: 0, g: 0, b: 0 }, normal: n2 };
+
+      let (_, depth_1) = render_triangle(triangle1, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+      let (_, depth_2) = render_triangle(triangle2, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+
+      assert!(depth_1 < depth_2);
     }
 
 }
@@ -129,13 +155,21 @@ fn draw_world(world_data: Vec<CubeType>) -> Screen {
     // DONE - if air, ignore
     // DONE - calculate position from index
     // DONE - find all cube edge vertices
-    // - construct all 12 triangles into Triangle3Ds and give them preassigned normals
-    //    - when constructing, if (dot product is negative), ignore the fucker
-    // - render whatever remains into list of Triangle2D
+    // DONE - construct all 12 triangles into Triangle3Ds and give them preassigned normals
+    // -if (dot product is negative), ignore the fucker
+    // - render whatever remains into list of Triangle2D with depth attached
 
     if cube_type.clone() == CubeType::Air {
       continue; // ignore air blocks
     }
+
+    let cube_color: CustomColor = match cube_type {
+      CubeType::Grass => GRASS_COLOR,
+      CubeType::Stone => STONE_COLOR,
+      CubeType::Wood  => WOOD_COLOR,
+      _ => panic!()
+    };
+
     // Let's call our cube ABCDEFGH
     //    A      B
     //    +------+.    
@@ -153,19 +187,143 @@ fn draw_world(world_data: Vec<CubeType>) -> Screen {
     //     `. |
     //       `+------ z
     //        E
+    //
+    // normals
+    // +-----------+
+    // |\          |\
+    // | \     T   | \
+    // |  \   Ba   |  \
+    // |   +-----------+
+    // | L |       | R |
+    // +---|-------+   |
+    //  \  |     F  \  |
+    //   \ |   B     \ |
+    //    \|          \|
+    //     +-----------+
+    //
+    //    face       xyz
+    // B  (bottom) = ( -1  0  0 )
+    // Ba (back)   = (  0  1  0 )
+    // L  (left)   = (  0  0 -1 )
+    // R  (right)  = (  0  0  1 )
+    // F  (front)  = (  0 -1  0 )
+    // T  (top)    = (  1  0  0 )
 
-    // construct all vertices of a cube. fuck arrays ima thug
+    // construct all vertices of a cube.
     let vertex_e: Vector3 = linear_index_to_vector3(linear_index);
-    let vertex_f: Vector3 = Vector3{ x: vertex_e.x      , y: vertex_e.y      , z: vertex_e.z + 1.0};
-    let vertex_h: Vector3 = Vector3{ x: vertex_e.x      , y: vertex_e.y + 1.0, z: vertex_e.z      };
-    let vertex_g: Vector3 = Vector3{ x: vertex_e.x      , y: vertex_e.y + 1.0, z: vertex_e.z + 1.0};
-    let vertex_d: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.y      , z: vertex_e.z      };
-    let vertex_c: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.y      , z: vertex_e.z + 1.0};
-    let vertex_b: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.y + 1.0, z: vertex_e.z + 1.0};
-    let vertex_a: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.y + 1.0, z: vertex_e.z      };
+    let vertex_f: Vector3 = Vector3{ x: vertex_e.x      , y: vertex_e.z      , z: vertex_e.y + 1.0};
+    let vertex_h: Vector3 = Vector3{ x: vertex_e.x      , y: vertex_e.z + 1.0, z: vertex_e.y      };
+    let vertex_g: Vector3 = Vector3{ x: vertex_e.x      , y: vertex_e.z + 1.0, z: vertex_e.y + 1.0};
+    let vertex_d: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.z      , z: vertex_e.y      };
+    let vertex_c: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.z      , z: vertex_e.y + 1.0};
+    let vertex_b: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.z + 1.0, z: vertex_e.y + 1.0};
+    let vertex_a: Vector3 = Vector3{ x: vertex_e.x + 1.0, y: vertex_e.z + 1.0, z: vertex_e.y      };
 
-    
 
+    let mut triangles: Vec<Triangle3D> = Vec::new();
+
+    // FRONT
+    // Construct ECF
+    triangles.push( Triangle3D {
+      a: vertex_e,
+      b: vertex_c,
+      c: vertex_f,
+      color: cube_color, 
+      normal: Vector3 { x: 0.0, z: -1.0, y: 0.0 },
+    });
+    // Construct ECD
+    triangles.push( Triangle3D {
+      a: vertex_e,
+      b: vertex_c,
+      c: vertex_d,
+      color: cube_color, 
+      normal: Vector3 { x: 0.0, z: -1.0, y: 0.0 },
+    });
+    // BACK
+    // construct ABG
+    triangles.push( Triangle3D {
+      a: vertex_a,
+      b: vertex_b,
+      c: vertex_g,
+      color: cube_color, 
+      normal: Vector3 { x: 0.0, z: 1.0, y: 0.0 },
+    });
+    // construct AHG
+    triangles.push( Triangle3D {
+      a: vertex_a,
+      b: vertex_h,
+      c: vertex_g,
+      color: cube_color, 
+      normal: Vector3 { x: 0.0, z: 1.0, y: 0.0 },
+    });
+    // TOP
+    // construct ADC
+    triangles.push( Triangle3D {
+      a: vertex_a,
+      b: vertex_d,
+      c: vertex_c,
+      color: cube_color, 
+      normal: Vector3 { x: 1.0, z: 0.0, y: 0.0 },
+    });
+    // construct BAC
+    triangles.push( Triangle3D {
+      a: vertex_b,
+      b: vertex_a,
+      c: vertex_c,
+      color: cube_color, 
+      normal: Vector3 { x: 1.0, z: 0.0, y: 0.0 },
+    });
+    // BOTTOM
+    // construct HEG
+    triangles.push( Triangle3D {
+      a: vertex_h,
+      b: vertex_e,
+      c: vertex_g,
+      color: cube_color, 
+      normal: Vector3 { x: -1.0, z: 0.0, y: 0.0 },
+    });
+    // construct GFE
+    triangles.push( Triangle3D {
+      a: vertex_g,
+      b: vertex_f,
+      c: vertex_e,
+      color: cube_color, 
+      normal: Vector3 { x: -1.0, z: 0.0, y: 0.0 },
+    });
+    // LEFT
+    // construct ADH
+    triangles.push( Triangle3D {
+      a: vertex_a,
+      b: vertex_d,
+      c: vertex_h,
+      color: cube_color, 
+      normal: Vector3 { x: 0.0, z: 0.0, y: -1.0 },
+    });
+    // construct DHE
+    triangles.push( Triangle3D {
+      a: vertex_d,
+      b: vertex_h,
+      c: vertex_e,
+      color: cube_color, 
+      normal: Vector3 { x: 0.0, z: 0.0, y: -1.0 },
+    });
+    // RIGHT
+    // construct FGB
+    triangles.push( Triangle3D {
+      a: vertex_f,
+      b: vertex_g,
+      c: vertex_b,
+      color: cube_color, 
+      normal: Vector3 { x: 0.0, z: 0.0, y: 1.0 },
+    });
+    // construct BFC
+    triangles.push( Triangle3D {
+      a: vertex_b,
+      b: vertex_f,
+      c: vertex_c,
+      color: cube_color, 
+      normal: Vector3 { x: 0.0, z: 0.0, y: 1.0 },
+    });
   }
 
   // so the linter shuts up
@@ -212,18 +370,21 @@ fn load_world(path: &str) -> Vec<CubeType> {
   return cubes
 }
 
-fn render_triangle(triangle: Triangle3D, camera_position: Vector3, camera_rotation_vertical: f32, camera_rotation_horizontal: f32) -> Triangle2D {
-  let vertex_a: Vector2 = render_vertex(triangle.a, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
-  let vertex_b: Vector2 = render_vertex(triangle.b, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
-  let vertex_c: Vector2 = render_vertex(triangle.c, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+fn render_triangle(triangle: Triangle3D, camera_position: Vector3, camera_rotation_vertical: f32, camera_rotation_horizontal: f32) -> (Triangle2D, f32) {
+  let (vertex_a, depth_a) = render_vertex(triangle.a, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+  let (vertex_b, depth_b) = render_vertex(triangle.b, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+  let (vertex_c, depth_c) = render_vertex(triangle.c, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+
+  // again, imprecise but whatever, good enough for a block game I guess
+  let depth = (depth_a + depth_b + depth_c) / 3.0;
 
   let test_colour: CustomColor = triangle.color;
 
-  return Triangle2D { a: vertex_a, b: vertex_b, c: vertex_c, color: test_colour }
+  return (Triangle2D { a: vertex_a, b: vertex_b, c: vertex_c, color: test_colour }, depth)
 }
 
 /// 3D point -> 2D point (to be put on screen)
-fn render_vertex(vertex: Vector3, camera_position: Vector3, camera_rotation_vertical: f32, camera_rotation_horizontal: f32) -> Vector2 {
+fn render_vertex(vertex: Vector3, camera_position: Vector3, camera_rotation_vertical: f32, camera_rotation_horizontal: f32) -> (Vector2, f32) {
 
   let position_on_vertical_plane: Vector2 = Vector2   { x: vertex.z, y: vertex.x };
   let position_on_horizontal_plane: Vector2 = Vector2 { x: vertex.y, y: vertex.x };  
@@ -231,14 +392,17 @@ fn render_vertex(vertex: Vector3, camera_position: Vector3, camera_rotation_vert
   let position_camera_vertical_plane: Vector2 =  Vector2   { x: camera_position.z, y: camera_position.x };
   let position_camera_horizontal_plane: Vector2 =  Vector2 { x: camera_position.y, y: camera_position.x };
 
-  let screen_x = project_2d_to_1d(position_on_vertical_plane, position_camera_vertical_plane, camera_rotation_vertical);
-  let screen_y = project_2d_to_1d(position_on_horizontal_plane, position_camera_horizontal_plane, camera_rotation_horizontal);
+  let (screen_x, depth_y) = project_2d_to_1d(position_on_vertical_plane, position_camera_vertical_plane, camera_rotation_vertical);
+  let (screen_y, depth_x) = project_2d_to_1d(position_on_horizontal_plane, position_camera_horizontal_plane, camera_rotation_horizontal);
 
-  return Vector2 { x: screen_x, y: screen_y };
+  // this is imprecise but probably good enough for a block game
+  let depth = (depth_x + depth_y) / 2.0;
+
+  return (Vector2 { x: screen_x, y: screen_y }, depth);
 }
 
 /// point on 2D plane -> point on 1D axis
-fn project_2d_to_1d(vertex: Vector2, camera_position: Vector2, camera_rotation: f32) -> f32 {
+fn project_2d_to_1d(vertex: Vector2, camera_position: Vector2, camera_rotation: f32) -> (f32, f32){
   //      this line represents the screen we project on
   //                          |
   //            ----\         |
@@ -266,7 +430,7 @@ fn project_2d_to_1d(vertex: Vector2, camera_position: Vector2, camera_rotation: 
   let relative_y: f32 = f32::sin(vertex_camera_angle) * camera_vertex_distance;
   // Now we apply Thales' Theorem to find screen_y
   let screen_y: f32 = (CAMERA_DISTANCE * relative_y) / (depth - CAMERA_DISTANCE);
-  return screen_y;
+  return (screen_y, depth);
 }
 
 /// Calculate the distance between two 3D points.
@@ -302,9 +466,9 @@ fn vector3_dot(vec1: Vector3, vec2: Vector3) -> f32 {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Vector3 {
-  z : f32,
   x : f32,
   y : f32,
+  z : f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
