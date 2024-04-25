@@ -61,6 +61,7 @@ mod tests {
       let camera_position: Vector3 = Vector3 { x: 1.0, y: 1.0, z: 1.0 };
       let camera_rotation_horizontal: f32 = 45.0 * (PI/180.0);
       let camera_rotation_vertical: f32 = 0.0 * (PI/180.0);
+
       // so expected result is (0, 0)
       let (actual, _) = render_vertex(vertex, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
       let expected: Vector2 = Vector2 { x: 0.0, y: 0.0 };
@@ -114,7 +115,35 @@ mod tests {
 
       assert!(depth_1 < depth_2);
     }
+    #[test]
+    fn angle_to_vector3() {
+      let horizontal: f32 = 45.0 * (PI/180.0);
+      let vertical: f32 = 45.0 * (PI/180.0);
+      let actual_vector: Vector3 = angle_couple_to_vector3(horizontal, vertical);
+      let expected_vector = Vector3{x: 0.71, y:0.71, z:0.71};
+      assert_eq!(actual_vector, expected_vector);
+    }
+    /// test if the math to check if the camera is pointing at triangles is correct
+    #[test]
+    fn triangle_normal_and_camera_dot() {
+      // actual coordinates dont matter
+      let a: Vector3 = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
+      let b: Vector3 = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
+      let c: Vector3 = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
+      let normal: Vector3 = Vector3 { x: 1.0, y: 1.0, z: 1.0 };
+      let tris: Triangle3D = Triangle3D { a, b, c, color: CustomColor { r: 0, g: 0, b: 0 }, normal };
 
+      let camera_rotation_horizontal: f32 = -180.0 * (PI/180.0);
+      let camera_rotation_vertical: f32 = -0.0 * (PI/180.0);
+
+      let camera_direction_vector: Vector3 = angle_couple_to_vector3(camera_rotation_horizontal, camera_rotation_vertical);
+
+      println!("tris normal: {:?}\ncamera direction: {:?}", tris.normal, camera_direction_vector);
+
+      let dot_product: f32 = vector3_dot(camera_direction_vector, tris.normal);
+      // the camera should be able to see the triangle (although at an angle), so the dot product should be megative
+      assert!(dot_product < 0.0);
+    }
 }
 
 fn main() {
@@ -146,18 +175,19 @@ fn main() {
   }
 }
 
-fn draw_world(world_data: Vec<CubeType>) -> Screen {
+fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotation_vertical: f32, camera_rotation_horizontal: f32) -> Screen {
 
-  let triangles_to_draw: Vec<Triangle2D> = Vec::new();
+  let mut triangles_to_draw: Vec<Triangle3D> = Vec::new();
 
   for (linear_index, cube_type) in world_data.iter().enumerate() {
     // now we must, for each index:
     // DONE - if air, ignore
     // DONE - calculate position from index
     // DONE - find all cube edge vertices
-    // DONE - construct all 12 triangles into Triangle3Ds and give them preassigned normals
-    // -if (dot product is negative), ignore the fucker
+    // DONE UNTESTED - construct all 12 triangles into Triangle3Ds and give them preassigned normals
+    // DONE UNTESTED - if (dot product is negative), ignore the fucker
     // - render whatever remains into list of Triangle2D with depth attached
+    //   - if depth is negative dont render
 
     if cube_type.clone() == CubeType::Air {
       continue; // ignore air blocks
@@ -324,10 +354,82 @@ fn draw_world(world_data: Vec<CubeType>) -> Screen {
       color: cube_color, 
       normal: Vector3 { x: 0.0, z: 0.0, y: 1.0 },
     });
+
+    let camera_rotation_vectorial: Vector3 = angle_couple_to_vector3(camera_rotation_horizontal, camera_rotation_vertical);
+
+    for triangle in triangles {
+      // if the normal is not negative, add to triangles to draw list
+      if vector3_dot(camera_rotation_vectorial, triangle.normal) < 0.0 {
+        triangles_to_draw.push(triangle);
+      }
+    }
   }
+
+  // now: render triangle and add it to a sorted list, going from deep to not deep
+  // (the depth of a triangle is how far it is from the camera on the camera's depth axis)
+  // (doing things this way may be problematic in a normal renderer, but in a cube came we're chilling)
+
+  // a loop where:
+  // - render a triangle, get its depth as well (this one will later be referred to as "current")
+  // - put it in a struct that contains it and its depth
+  // - create bool already_added = false;
+  // - iterate through already rendered triangles
+  //   - if depth of current is higher than the triangle already rendered and already_added is false
+  //     - add current to new vector
+  //     - set already_added to true
+  //   - else
+  //      - add already rendered to new vector
+  // - set already rendered to new vector
+  // - repeat for the next triangle
+  let mut rendered_triangles: Vec<RenderedTriangle2D> = Vec::new();
+  for triangle in triangles_to_draw.clone() {
+
+    let (rendered_triangle, depth): (Triangle2D, f32) = render_triangle(triangle, camera_position, camera_rotation_vertical, camera_rotation_horizontal);
+
+    let rendered_triangle_to_append: RenderedTriangle2D = RenderedTriangle2D{
+      triangle: rendered_triangle,
+      depth,
+    };
+
+    let already_added: bool = false;
+
+    let mut new_rendered_triangles: Vec<RenderedTriangle2D> = Vec::new();
+    for already_rendered_triangle in rendered_triangles.clone() {
+      if already_rendered_triangle.depth < rendered_triangle_to_append.depth && already_added == false {
+        new_rendered_triangles.push(rendered_triangle_to_append);
+      }
+      else {
+        new_rendered_triangles.push(already_rendered_triangle)
+      }
+    }
+    rendered_triangles = new_rendered_triangles;
+
+  }
+
+  
 
   // so the linter shuts up
   return Screen { pixels: Vec::new(), size_x: 0, size_y: 0 };
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct RenderedTriangle2D {
+  triangle: Triangle2D,
+  depth: f32,
+}
+
+fn angle_couple_to_vector3(horizontal: f32, vertical: f32) -> Vector3 {
+  let vector: Vector3 = Vector3{
+    z: round_hundredth(f32::cos(horizontal)),
+    x: round_hundredth(f32::sin(vertical)),
+    y: round_hundredth(f32::sin(horizontal)),
+  };
+  return vector;
+}
+/// round a number to the hundredth <br>
+/// 0.015205001 => 0.01
+fn round_hundredth(num: f32) -> f32 {
+  return (num * 100.0).round() / 100.0;
 }
 
 /// get a set of coordinates with an index
