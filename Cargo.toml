@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 clearscreen = "3.0.0"
 colored = "2.1.0"
+console = "0.15.8"
 num-traits = "0.2.18"
