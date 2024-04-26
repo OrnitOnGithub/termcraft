@@ -2,15 +2,17 @@ use colored::*;
 use num_traits::ToPrimitive;
 use console::Term;
 // unintuitively, Y is horizontal
-const SCREEN_Y_SIZE: usize = 40;
+const SCREEN_Y_SIZE: usize = 50;
 // and X is vertical
 const SCREEN_X_SIZE: usize = 30;
 
-const WORLD_SIZE: usize = 3;
+const WORLD_SIZE: usize = 10;
+
+const SIZE_MULTIPLIER: f32 = 10.0;
 
 const PI: f32 = 3.14159265358979323846264338327950288419716939937510582;
 
-const CAMERA_DISTANCE: f32 = 10.0; // this is kind of like FOV but in theory (UNTESTED) higher value = lower FOV.
+const CAMERA_DISTANCE: f32 = 5.0; // this is kind of like FOV but in theory (UNTESTED) higher value = lower FOV.
 const SUN_DIRECTION: Vector3 = Vector3{x: 0.0, y: 0.0, z: -1.0};
 
 const GRASS_COLOR: CustomColor = CustomColor { r: 0, g: 255, b: 0 };
@@ -18,13 +20,13 @@ const STONE_COLOR: CustomColor = CustomColor { r: 128, g: 128, b: 128 };
 const WOOD_COLOR: CustomColor = CustomColor { r: 128, g: 128, b: 0 };
 
 fn main() {
-  //        z
+  //        y
   //        |
-  //    y   |
+  //    z   |
   //     `. |
   //       `+------ x
   //        E
-  let mut camera_position: Vector3 = Vector3 { x: 0.0, y: 0.0, z: 0.0 };
+  let mut camera_position: Vector3 = Vector3 { x: 0.0, y: 11.0, z: 0.0 };
   // achtung! CAMERA ROTATION IS IN RADIANS     convert to radians
   let mut camera_rotation_vertical: f32 = 0.0 * (PI/180.0);
   let mut camera_rotation_horizontal: f32 = 0.0 * (PI/180.0);
@@ -44,34 +46,47 @@ fn main() {
     let char = stdout.read_char().expect("ass");
 
     if char == 'w' {
-      camera_position.x += 1.0;
+      camera_position.z += 1.0;
     }
     if char == 'a' {
-      camera_position.y += -1.0;
-    }
-    if char == 's' {
       camera_position.x += -1.0;
     }
+    if char == 's' {
+      camera_position.z += -1.0;
+    }
     if char == 'd' {
+      camera_position.x += 1.0;
+    }
+    if char == 'q' {
+      camera_position.y += -1.0;
+    }
+    if char == 'e' {
       camera_position.y += 1.0;
+    }
+    if char == 'y' {
+      camera_rotation_horizontal += -5.0;
+    }
+    if char == 'x' {
+      camera_rotation_horizontal += 5.0;
     }
 
     //println!("char: {:?}", char);
 
-    //clearscreen::clear().expect("failed to clear screen");
     
     // update main screen
     let frame_start_time = std::time::Instant::now();
     main_screen = draw_world(world_data.clone(), camera_position, camera_rotation_vertical, camera_rotation_horizontal);
     let frame_duration = frame_start_time.elapsed();
-    println!("RENDER: {:?}", frame_duration);
-    println!("POS   : {:?}", camera_position);
     // update main screen
     
     // Draw the screen and sleep for a few milliseconds (to let the screen render)
+    clearscreen::clear().expect("failed to clear screen");
     main_screen.draw();
     let idle_interval = std::time::Duration::from_millis(10);
     //std::thread::sleep(idle_interval);
+    println!("RENDER : {:?}", frame_duration);
+    println!("POS    : {:?}", camera_position);
+    println!("CAM_ROT: {:?}", camera_rotation_horizontal);
     
   }
 }
@@ -113,9 +128,9 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
     //       `+------+ 
     //       E       F
     // Coordinates for reference
-    //        z
+    //        y
     //        |
-    //    y   |
+    //    z   |
     //     `. |
     //       `+------ x
     //        E
@@ -143,13 +158,13 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
 
     // construct all vertices of a cube.
     let vertex_e: Vector3 = linear_index_to_vector3(linear_index);
-    let vertex_f: Vector3 = Vector3{ z: vertex_e.x      , y: vertex_e.z      , x: vertex_e.y + 1.0};
-    let vertex_h: Vector3 = Vector3{ z: vertex_e.x      , y: vertex_e.z + 1.0, x: vertex_e.y      };
-    let vertex_g: Vector3 = Vector3{ z: vertex_e.x      , y: vertex_e.z + 1.0, x: vertex_e.y + 1.0};
-    let vertex_d: Vector3 = Vector3{ z: vertex_e.x + 1.0, y: vertex_e.z      , x: vertex_e.y      };
-    let vertex_c: Vector3 = Vector3{ z: vertex_e.x + 1.0, y: vertex_e.z      , x: vertex_e.y + 1.0};
-    let vertex_b: Vector3 = Vector3{ z: vertex_e.x + 1.0, y: vertex_e.z + 1.0, x: vertex_e.y + 1.0};
-    let vertex_a: Vector3 = Vector3{ z: vertex_e.x + 1.0, y: vertex_e.z + 1.0, x: vertex_e.y      };
+    let vertex_f: Vector3 = Vector3{ z: vertex_e.x      , y: vertex_e.y      , x: vertex_e.z + 1.0};
+    let vertex_h: Vector3 = Vector3{ z: vertex_e.x      , y: vertex_e.y + 1.0, x: vertex_e.z      };
+    let vertex_g: Vector3 = Vector3{ z: vertex_e.x      , y: vertex_e.y + 1.0, x: vertex_e.z + 1.0};
+    let vertex_d: Vector3 = Vector3{ z: vertex_e.x + 1.0, y: vertex_e.y      , x: vertex_e.z      };
+    let vertex_c: Vector3 = Vector3{ z: vertex_e.x + 1.0, y: vertex_e.y      , x: vertex_e.z + 1.0};
+    let vertex_b: Vector3 = Vector3{ z: vertex_e.x + 1.0, y: vertex_e.y + 1.0, x: vertex_e.z + 1.0};
+    let vertex_a: Vector3 = Vector3{ z: vertex_e.x + 1.0, y: vertex_e.y + 1.0, x: vertex_e.z      };
 
 
     let mut triangles: Vec<Triangle3D> = Vec::new();
@@ -161,7 +176,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_c,
       c: vertex_f,
       color: cube_color, 
-      normal: Vector3 { z: 0.0, x: -1.0, y: 0.0 },
+      normal: Vector3 { y: 0.0, z: -1.0, x: 0.0 },
     });
     // Construct ECD
     triangles.push( Triangle3D {
@@ -169,7 +184,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_c,
       c: vertex_d,
       color: cube_color, 
-      normal: Vector3 { z: 0.0, x: -1.0, y: 0.0 },
+      normal: Vector3 { y: 0.0, z: -1.0, x: 0.0 },
     });
     // BACK
     // construct ABG
@@ -178,7 +193,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_b,
       c: vertex_g,
       color: cube_color, 
-      normal: Vector3 { z: 0.0, x: 1.0, y: 0.0 },
+      normal: Vector3 { y: 0.0, z: 1.0, x: 0.0 },
     });
     // construct AHG
     triangles.push( Triangle3D {
@@ -186,7 +201,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_h,
       c: vertex_g,
       color: cube_color, 
-      normal: Vector3 { z: 0.0, x: 1.0, y: 0.0 },
+      normal: Vector3 { y: 0.0, z: 1.0, x: 0.0 },
     });
     // TOP
     // construct ADC
@@ -195,7 +210,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_d,
       c: vertex_c,
       color: cube_color, 
-      normal: Vector3 { z: 1.0, x: 0.0, y: 0.0 },
+      normal: Vector3 { y: 1.0, z: 0.0, x: 0.0 },
     });
     // construct BAC
     triangles.push( Triangle3D {
@@ -203,7 +218,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_a,
       c: vertex_c,
       color: cube_color, 
-      normal: Vector3 { z: 1.0, x: 0.0, y: 0.0 },
+      normal: Vector3 { y: 1.0, z: 0.0, x: 0.0 },
     });
     // BOTTOM
     // construct HEG
@@ -212,7 +227,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_e,
       c: vertex_g,
       color: cube_color, 
-      normal: Vector3 { z: -1.0,x: 0.0, y: 0.0 },
+      normal: Vector3 { y: -1.0, z: 0.0, x: 0.0 },
     });
     // construct GFE
     triangles.push( Triangle3D {
@@ -220,7 +235,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_f,
       c: vertex_e,
       color: cube_color, 
-      normal: Vector3 { z: -1.0,x: 0.0, y: 0.0 },
+      normal: Vector3 { y: -1.0, z: 0.0, x: 0.0 },
     });
     // LEFT
     // construct ADH
@@ -229,7 +244,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_d,
       c: vertex_h,
       color: cube_color, 
-      normal: Vector3 { z: 0.0, x: 0.0, y: -1.0 },
+      normal: Vector3 { y: 0.0, z: 0.0, x: -1.0 },
     });
     // construct DHE
     triangles.push( Triangle3D {
@@ -237,7 +252,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_h,
       c: vertex_e,
       color: cube_color, 
-      normal: Vector3 { z: 0.0, x: 0.0, y: -1.0 },
+      normal: Vector3 { y: 0.0, z: 0.0, x: -1.0 },
     });
     // RIGHT
     // construct FGB
@@ -246,7 +261,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_g,
       c: vertex_b,
       color: cube_color, 
-      normal: Vector3 { z: 0.0, x: 0.0, y: 1.0 },
+      normal: Vector3 { y: 0.0, z: 0.0, x: 1.0 },
     });
     // construct BFC
     triangles.push( Triangle3D {
@@ -254,7 +269,7 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
       b: vertex_f,
       c: vertex_c,
       color: cube_color, 
-      normal: Vector3 { z: 0.0, x: 0.0, y: 1.0 },
+      normal: Vector3 { y: 0.0, z: 0.0, x: 1.0 },
     });
 
     let camera_rotation_vectorial: Vector3 = angle_couple_to_vector3(camera_rotation_horizontal, camera_rotation_vertical);
@@ -321,8 +336,8 @@ fn draw_world(world_data: Vec<CubeType>, camera_position: Vector3, camera_rotati
     for (y, _) in x_row.iter().enumerate() {
       let mut new_pixel: CustomColor = CustomColor { r: 0, g: 0, b: 0 };
       for triangle in rendered_triangles.clone() {
-        let x_centered = (x as i32).wrapping_sub(SCREEN_X_SIZE as i32 / 2) as f32;
-        let y_centered = (y as i32).wrapping_sub(SCREEN_Y_SIZE as i32 / 2) as f32;
+        let x_centered = (x as i32).wrapping_sub(SCREEN_X_SIZE as i32 / 1) as f32;
+        let y_centered = (y as i32).wrapping_sub(SCREEN_Y_SIZE as i32 / 1) as f32;
         if triangle.triangle.contains(Vector2 { x: x_centered, y: y_centered }) {
           new_pixel = triangle.triangle.color;
         }
@@ -346,9 +361,9 @@ struct RenderedTriangle2D {
 
 fn angle_couple_to_vector3(horizontal: f32, vertical: f32) -> Vector3 {
   let vector: Vector3 = Vector3{
-    x: round_hundredth(f32::cos(horizontal)),
-    z: round_hundredth(f32::sin(vertical)),
-    y: round_hundredth(f32::sin(horizontal)),
+    z: round_hundredth(f32::cos(horizontal)),
+    y: round_hundredth(f32::sin(vertical)),
+    x: round_hundredth(f32::sin(horizontal)),
   };
   return vector;
 }
@@ -360,16 +375,16 @@ fn round_hundredth(num: f32) -> f32 {
 
 /// get a set of coordinates with an index
 fn linear_index_to_vector3(linear_index: usize) -> Vector3 {
-  let x = linear_index % WORLD_SIZE;
+  let z = linear_index % WORLD_SIZE;
   let y = (linear_index / WORLD_SIZE) % WORLD_SIZE;
-  let z = linear_index / (WORLD_SIZE * WORLD_SIZE);
+  let x = linear_index / (WORLD_SIZE * WORLD_SIZE);
   return Vector3 { x: x as f32, y: y as f32, z: z as f32};
 }
 /// get an index from a set of coordinates
 fn vector3_to_linear_index(position: Vector3) -> usize {
-  let x = position.x.to_usize().expect("idc");
+  let z = position.x.to_usize().expect("idc");
   let y = position.y.to_usize().expect("idc");
-  let z = position.z.to_usize().expect("idc");
+  let x = position.z.to_usize().expect("idc");
   let linear_index: usize = x + WORLD_SIZE * (y * WORLD_SIZE + z);
   return linear_index;
 }
@@ -412,11 +427,11 @@ fn render_triangle(triangle: Triangle3D, camera_position: Vector3, camera_rotati
 /// 3D point -> 2D point (to be put on screen)
 fn render_vertex(vertex: Vector3, camera_position: Vector3, camera_rotation_vertical: f32, camera_rotation_horizontal: f32) -> (Vector2, f32) {
 
-  let position_on_vertical_plane: Vector2 = Vector2   { x: vertex.z, y: vertex.x };
-  let position_on_horizontal_plane: Vector2 = Vector2 { x: vertex.y, y: vertex.x };  
+  let position_on_vertical_plane: Vector2 = Vector2   { x: vertex.y, y: vertex.z };
+  let position_on_horizontal_plane: Vector2 = Vector2 { x: vertex.x, y: vertex.z };  
 
-  let position_camera_vertical_plane: Vector2 =  Vector2   { x: camera_position.z, y: camera_position.x };
-  let position_camera_horizontal_plane: Vector2 =  Vector2 { x: camera_position.y, y: camera_position.x };
+  let position_camera_vertical_plane: Vector2 =  Vector2   { x: camera_position.y, y: camera_position.z };
+  let position_camera_horizontal_plane: Vector2 =  Vector2 { x: camera_position.x, y: camera_position.z };
 
   let (screen_x, depth_x) = project_2d_to_1d(position_on_vertical_plane, position_camera_vertical_plane, camera_rotation_vertical);
   let (screen_y, depth_y) = project_2d_to_1d(position_on_horizontal_plane, position_camera_horizontal_plane, camera_rotation_horizontal);
@@ -453,7 +468,7 @@ fn project_2d_to_1d(vertex: Vector2, camera_position: Vector2, camera_rotation: 
   let relative_y: f32 = f32::sin(vertex_camera_angle) * camera_vertex_distance;
   // Now we apply Thales' Theorem to find screen_y
   let screen_y: f32 = (CAMERA_DISTANCE * relative_y) / (depth - CAMERA_DISTANCE);
-  return (screen_y, depth);
+  return (screen_y * SIZE_MULTIPLIER, depth);
 }
 
 

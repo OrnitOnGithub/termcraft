@@ -1,5 +1,5 @@
 import random
-worldsize = 3
+worldsize = 10
 # Create a test world of 100% grass
 world_size = worldsize*worldsize*worldsize
 print("creating "+ str(world_size) + " sized world")

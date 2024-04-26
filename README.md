@@ -1,9 +1,17 @@
-## render times
+## Termcraft
 
-255x255x255 sized world: 23s
+I was hoping to be able to create a 3D minimalistic Minecraft clone in the terminal, however all I have now is some wierd intelligible gibberish being rendered.
 
-64x64x64 sized: 400ms
+## How to use
 
-64x32x64 sized: 180ms
+Cargo run and then WASD to move horizontally, Q and E for up and down, X and Y for camera rotation. Not that it matters, all you'll see is gibberish.
 
-i want to kms
+(note: it won't start rendering until you move)
+
+![image](image.png)
+
+## Extra
+
+Initiate a new world by running `init_world.py`.
+
+Also all the tests are broken because I renamed all of the coorinate components.
